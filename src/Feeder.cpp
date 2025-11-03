@@ -8,5 +8,5 @@ FeedManager::FeedManager(Servo& servo, int defaultPos, int buzzerPin, int ledPin
     pinMode(_ledPin, OUTPUT);
     // Attach the servo using the configured pin number (was incorrectly passing the Servo object)
     _servo.attach(_servoPin);
-    _servo.write(_defaultPos);
+    _servo.write(_defaultPos); 
 
