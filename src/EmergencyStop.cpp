@@ -9,6 +9,7 @@ EmergencyStop::EmergencyStop(int pin, Servo& servo) : _pin(pin), _servo(servo) {
     _currentState = false;  // assuming E-STOP is not pressed at start
 }
 
+// This is the E-STOP function definition (:: means "belongs to")
 void EmergencyStop::E_STOP(bool state) {
     if (state != _previousState) {
         _previousState = state;

@@ -53,7 +53,7 @@ bool stopValue;
 Servo myServo;
 
 // create an EmergencyStop object with its constructor
-EmergencyStop eStop(buttonStopPin, myServo);
+EmergencyStop eStop(buttonStopPin, myServo); // calling a function from another file (setup of E-STOP)
 
 // struct; has all its members public by default
 // class; has all its members private by default
@@ -114,8 +114,65 @@ BLYNK_CONNECTED(){
 
 
 void setup() {
-  
   Serial.begin(115200);
+
+  // I/O pins setup
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_Status, OUTPUT);
+  pinMode(LED_WiFi, OUTPUT);
+  pinMode(buttonStartPin, INPUT);
+  pinMode(buttonStopPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+
+  // Servo setup
+  myServo.setPeriodHertz(50);
+  myServo.attach(servoPin, 500, 2400);
+  myServo.write(servo_def_pos);
+  
+  // LCD setup
+  Wire.begin(21, 22); // set SDA and SCLK
+  lcd.init(); // initialize the lcd 
+  lcd.backlight(); // turn on backlight
+  lcd.setCursor(0,0);
+  lcd.print("INITIALIZING...");
+  delay(3000);
+  lcd.clear();        
+
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    DEBUG_PRINT(".");
+    
+    lcd.print("CONNECTING...");
+    delay(3000);
+    lcd.clear();
+  }
+  
+  DEBUG_PRINTLN("WiFi Connected!");
+
+  // statuses (on-start)
+  // power status
+  digitalWrite(LED_BUILTIN, HIGH);
+  Blynk.virtualWrite(V0, HIGH);
+  Power_Status = 1;
+  prev_Power_Status = Power_Status;
+
+  // wifi status
+  if (Blynk.connected()){ // true
+    digitalWrite(LED_WiFi, HIGH);
+    Blynk.virtualWrite(V2, HIGH);
+    WiFi_Status = 1;
+    prev_WiFi_Status = WiFi_Status;
+  } else {
+    digitalWrite(LED_WiFi, LOW);
+    Blynk.virtualWrite(V2, LOW);
+    WiFi_Status = 0;
+    prev_WiFi_Status = WiFi_Status;
+  }
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  
 
 }
 

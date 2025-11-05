@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "Feeder.h"
+#include "FeedManager.h"
 // #include "config.h"
 
 FeedManager::FeedManager(Servo& servo, int defaultPos, int buzzerPin, int ledPin, int servoPin)

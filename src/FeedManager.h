@@ -29,6 +29,7 @@ public:
     // Constructor
     FeedManager(Servo& servo, int defaultPos, int buzzerPin, int ledPin, int servoPin);
 
+    // Public methods/functions
     void startFeed(String size, int delay, bool isTimer, bool isManual);
 
     void updateFeed();
