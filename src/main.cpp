@@ -113,14 +113,7 @@ void setup() {
   myServo.write(servo_def_pos);
   
   // LCD setup
-  lcdManager.initialize();
-  Wire.begin(21, 22); // set SDA and SCLK
-  lcd.init(); // initialize the lcd 
-  lcd.backlight(); // turn on backlight
-  lcd.setCursor(0,0);
-  lcd.print("INITIALIZING...");
-  delay(3000);
-  lcd.clear();        
+  lcdManager.initialize();      
 
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
