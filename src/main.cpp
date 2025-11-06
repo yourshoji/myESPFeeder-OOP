@@ -12,6 +12,13 @@ using namespace std;
 #include "EmergencyStop.h"
 #include "config.h"
 #include "credentials.h"
+#include "TimeManager.h"
+#include "LCDManager.h"
+
+//Instantiation (spawning) of objects, so they truly exist
+LCDManager lcdManager(lcd);
+TimeManager timeManager(Rtc);
+EmergencyStop eStop(buttonStopPin, myServo); // calling a function from another file (setup of E-STOP)
 
 // LCD config
 LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
@@ -52,9 +59,6 @@ bool stopValue;
 
 Servo myServo;
 
-// create an EmergencyStop object with its constructor
-EmergencyStop eStop(buttonStopPin, myServo); // calling a function from another file (setup of E-STOP)
-
 // struct; has all its members public by default
 // class; has all its members private by default
 struct feedTimer {
@@ -79,25 +83,6 @@ int lastIndex = arrLength - 1;
 
 int feed_arrCounter = 0;
 
-struct rtcStatus {
-  int rtc_hr;
-  int rtc_min;
-  int rtc_sec;
-};
-
-rtcStatus rtcTimer() {
-  rtcStatus status; // create a local struct variable
-  RtcDateTime now = Rtc.GetDateTime();
-
-  status.rtc_hr = now.Hour(); // field struct fields
-  status.rtc_min = now.Minute();
-  status.rtc_sec = now.Second();
-  
-  return status;
-}
-
-rtcStatus status; // declaring (globally)
-
 struct FeedState {
   bool active = false;
   unsigned long startTime = 0;
@@ -110,8 +95,6 @@ FeedState currentFeed;
 BLYNK_CONNECTED(){
   Blynk.syncVirtual(V4, V5, V6, V13, V14, V15);
 }
-
-
 
 void setup() {
   Serial.begin(115200);
@@ -130,6 +113,7 @@ void setup() {
   myServo.write(servo_def_pos);
   
   // LCD setup
+  lcdManager.initialize();
   Wire.begin(21, 22); // set SDA and SCLK
   lcd.init(); // initialize the lcd 
   lcd.backlight(); // turn on backlight
@@ -143,9 +127,7 @@ void setup() {
     delay(500);
     DEBUG_PRINT(".");
     
-    lcd.print("CONNECTING...");
-    delay(3000);
-    lcd.clear();
+    lcdManager.wifiConnecting();
   }
   
   DEBUG_PRINTLN("WiFi Connected!");
