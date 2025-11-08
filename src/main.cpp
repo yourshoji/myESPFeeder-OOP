@@ -14,6 +14,8 @@ using namespace std;
 #include "credentials.h"
 #include "TimeManager.h"
 #include "LCDManager.h"
+#include "Logger.h"
+#include "FeedManager.h"
 
 //Instantiation (spawning) of objects, so they truly exist
 LCDManager lcdManager(lcd);
@@ -147,11 +149,17 @@ void setup() {
 
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
-  
+  readArray(0);
+  readArray(1);
+  readArray(2);  
 
 }
 
 void loop() {
-  
+  startValue = digitalRead(buttonStartPin);
+  stopValue = digitalRead(buttonStopPin);
+    
+  if (startValue == HIGH) isManual = true; else isManual = false;
+  if (stopValue == HIGH) eStop = true; else eStop = false;
 }
 
