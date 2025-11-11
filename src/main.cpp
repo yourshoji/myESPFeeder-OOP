@@ -73,18 +73,8 @@ int prev_WiFi_Status = 0;
 bool startValue;
 bool stopValue;
 
-// struct; has all its members public by default
-// class; has all its members private by default
-struct feedTimer {
-  int hr;
-  int min;
-  int sec;
-  String size;
-  int duration;
-  bool triggered;
-};
-
-feedTimer feedingTimes[3] = {
+// Use FeedTimer from FeedManager.h; do not redefine a local type that conflicts
+FeedTimer feedingTimes[3] = {
   // {14, 43, 0, "small", 3000, false},
   // {14, 45, 0, "medium", 5000, false},
   // {14, 47, 0, "big", 7000, false}
@@ -168,6 +158,28 @@ void loop() {
     
   bool E_STOP_VALUE = (stopValue == HIGH); // true if pressed, false if released
   eStop.E_STOP(E_STOP_VALUE);  
+
+  feedManager.startFeed(
+    "big", 
+    5000, 
+    false, 
+    false
+  );
+
+if (feed_arrCounter > 0){ // accept only 3 schedules
+  feedManager.scheduleFeed(
+    feedingTimes, 
+    arrLength, 
+    reinterpret_cast<const RtcStatus&>(status)
+  );
+}
+
+feedManager.delayTillReset(
+  feedingTimes, 
+  arrLength
+);
+
+
 
 
 
