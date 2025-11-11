@@ -19,18 +19,29 @@ using namespace std;
 #include "BlynkManager.h"
 #include "StatusHandler.h"
 
-//Instantiation (spawning) of objects, so they truly exist
-LCDManager lcdManager(lcd);
-TimeManager timeManager(Rtc);
-EmergencyStop eStop(BUTTON_STOP_PIN, myServo); // calling a function from another file (setup of E-STOP)
-StatusHandler statusHandler;
-
 // LCD config
 LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
 // RTC config
 ThreeWire myWire(12, 27, 13);  // IO, SCLK, CE (adjust pins as needed)
 RtcDS1302<ThreeWire> Rtc(myWire);
+
+// SERVO config
+Servo myServo;
+
+//Instantiation (spawning) of objects, so they truly exist
+LCDManager lcdManager(lcd);
+TimeManager timeManager(Rtc);
+EmergencyStop eStop(BUTTON_STOP_PIN, myServo); // calling a function from another file (setup of E-STOP)
+StatusHandler statusHandler;
+FeedManager feedManager(
+    myServo, 
+    lcd, 
+    Rtc, 
+    BUZZER_PIN, 
+    LED_Status,
+    SERVO_DEFAULT_POS
+);
 
 // For betterDelay function
 unsigned long delayStartFeed = 0;
@@ -61,8 +72,6 @@ int prev_WiFi_Status = 0;
 // reading the values from Start & E-Stop buttons
 bool startValue;
 bool stopValue;
-
-Servo myServo;
 
 // struct; has all its members public by default
 // class; has all its members private by default
@@ -139,9 +148,7 @@ void setup() {
 
   Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
 
-  readArray(0);
-  readArray(1);
-  readArray(2);  
+  DEBUG_PRINTLN(feedManager.readFeedTimer(feedingTimes[0]));
 
   statusHandler.FeedStatusReset();
 
