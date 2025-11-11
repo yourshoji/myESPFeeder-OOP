@@ -16,11 +16,14 @@ using namespace std;
 #include "LCDManager.h"
 #include "Logger.h"
 #include "FeedManager.h"
+#include "BlynkManager.h"
+#include "StatusHandler.h"
 
 //Instantiation (spawning) of objects, so they truly exist
 LCDManager lcdManager(lcd);
 TimeManager timeManager(Rtc);
-EmergencyStop eStop(buttonStopPin, myServo); // calling a function from another file (setup of E-STOP)
+EmergencyStop eStop(BUTTON_STOP_PIN, myServo); // calling a function from another file (setup of E-STOP)
+StatusHandler statusHandler;
 
 // LCD config
 LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
@@ -85,6 +88,9 @@ int lastIndex = arrLength - 1;
 
 int feed_arrCounter = 0;
 
+// global time status
+TimeManager::rtc_src status; // global struct, object of rtc_src
+
 struct FeedState {
   bool active = false;
   unsigned long startTime = 0;
@@ -105,19 +111,19 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(LED_Status, OUTPUT);
   pinMode(LED_WiFi, OUTPUT);
-  pinMode(buttonStartPin, INPUT);
-  pinMode(buttonStopPin, INPUT);
-  pinMode(buzzerPin, OUTPUT);
+  pinMode(BUTTON_START_PIN, INPUT);
+  pinMode(BUTTON_STOP_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
 
   // Servo setup
   myServo.setPeriodHertz(50);
-  myServo.attach(servoPin, 500, 2400);
-  myServo.write(servo_def_pos);
+  myServo.attach(SERVO_PIN, 500, 2400);
+  myServo.write(SERVO_DEFAULT_POS);
   
   // LCD setup
   lcdManager.initialize();      
 
-  WiFi.begin(ssid, pass);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     DEBUG_PRINT(".");
@@ -129,37 +135,48 @@ void setup() {
 
   // statuses (on-start)
   // power status
-  digitalWrite(LED_BUILTIN, HIGH);
-  Blynk.virtualWrite(V0, HIGH);
-  Power_Status = 1;
-  prev_Power_Status = Power_Status;
+  statusHandler.StatusOnStart();
 
-  // wifi status
-  if (Blynk.connected()){ // true
-    digitalWrite(LED_WiFi, HIGH);
-    Blynk.virtualWrite(V2, HIGH);
-    WiFi_Status = 1;
-    prev_WiFi_Status = WiFi_Status;
-  } else {
-    digitalWrite(LED_WiFi, LOW);
-    Blynk.virtualWrite(V2, LOW);
-    WiFi_Status = 0;
-    prev_WiFi_Status = WiFi_Status;
-  }
-
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+  Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
 
   readArray(0);
   readArray(1);
   readArray(2);  
 
+  statusHandler.FeedStatusReset();
+
+  DEBUG_PRINTLN("Counter (startup): " + String(feed_arrCounter));
 }
 
 void loop() {
-  startValue = digitalRead(buttonStartPin);
-  stopValue = digitalRead(buttonStopPin);
+
+  Blynk.run();
+
+  statusHandler.StatusUpdate();
+
+  status = timeManager.rtcTimer(); // update the status (globally)
+
+  startValue = digitalRead(BUTTON_START_PIN);
+  stopValue = digitalRead(BUTTON_STOP_PIN);
     
-  if (startValue == HIGH) isManual = true; else isManual = false;
-  if (stopValue == HIGH) eStop = true; else eStop = false;
+  bool E_STOP_VALUE = (stopValue == HIGH); // true if pressed, false if released
+  eStop.E_STOP(E_STOP_VALUE);  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
 

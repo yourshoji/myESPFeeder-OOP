@@ -10,8 +10,15 @@ class BlynkManager {
             const char* pass = WIFI_PASS
         );
 
-        void BlynkSetup();
+        void BlynkSyncVirtualPins();
 
-        
+        void BlynkBegin(const char* authToken, const char* ssid, const char* pass);
+
+        // void BlynkWiFiStatusHandler();
+
+        void BlynkManualFeedHandler();
+
+        //Blynk V3-V16 Handlers
+
 };
 
