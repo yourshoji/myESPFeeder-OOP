@@ -1,4 +1,7 @@
 #include "FeedManager.h"
+#include <HTTPClient.h>
+#include <BlynkSimpleEsp32.h>
+#include "credentials.h"
 
 FeedManager::FeedManager(
     Servo& SERVO, // references
@@ -10,23 +13,20 @@ FeedManager::FeedManager(
 
     _SERVO(SERVO), 
     _LCD(LCD), 
-    _RTC(RTC), 
+    _RTC(RTC),  
     _BUZZER_PIN(LOCAL_BUZZER_PIN), 
     _LED_PIN(LOCAL_LED_PIN),
     _SERVO_DEFAULT_POS(SERVO_DEFAULT_POS) {}
 
-int FeedManager::portion(const String& size){
-    if (size == "small"){
-        return 60; // adjust as needed
-    }
-    else if (size == "medium"){
-        return 120; // adjust as needed
-    }
-    else if (size == "big"){
-        return 180; // adjust as needed
-    }
-    else {
-        return _SERVO_DEFAULT_POS; // default position
+int FeedManager::portion(FeedSize size){
+    switch(size) {
+        case SMALL:
+            return 60; // adjust as needed
+        case MEDIUM:
+            return 120; // adjust as needed
+        case BIG:
+            return 180; // adjust as needed
+        default: return _SERVO_DEFAULT_POS; // default position
     }
 }
 
@@ -47,7 +47,7 @@ String FeedManager::rtc_strTimer(){
     return String(now.Day()) + "/" + String(now.Month()) + " " + String(now.Hour()) + ":" + String(now.Minute());
 }
 
-void FeedManager::startFeed(String size, int duration, bool isTimer, bool isManual){
+void FeedManager::startFeed(FeedSize size, int duration, bool isTimer, bool isManual){
     if ((_currentFeedState.active) || _eStop) return;
     
     if (isManual || isTimer) {
@@ -84,12 +84,15 @@ void FeedManager::updateFeed(){
     }
 }
 
-void FeedManager::scheduleFeed(FeedTimer* feedingTimes, int arrLength, const RtcStatus& status){
-    for (int i = 0; i < arrLength; i++){
-        FeedTimer& t = feedingTimes[i];
+void FeedManager::scheduleFeed(FeedTimer* FeedingSchedule, int ScheduleCounter, const RtcStatus& status){
+    for (int i = 0; i < ScheduleCounter; i++){
+        FeedTimer& t = FeedingSchedule[i];
         if (!t.triggered) {
             int RTC_SEC = status.rtc_hr * 3600 + status.rtc_min * 60 + status.rtc_sec;
             int TIM_SEC = t.hr * 3600 + t.min * 60 + t.sec;
+            
+            DEBUG_PRINTLN("Checking Schedule " + String(i + 1) + ": RTC_SEC=" + String(RTC_SEC) + ", TIM_SEC=" + String(TIM_SEC));
+            
             if (RTC_SEC == TIM_SEC) {
                 startFeed(t.size, t.duration, true, false);
                 t.triggered = true;
@@ -97,43 +100,53 @@ void FeedManager::scheduleFeed(FeedTimer* feedingTimes, int arrLength, const Rtc
                 String msg = "Schedule(" + String(i + 1) + ") is fed!";
                 Blynk.logEvent("feeding_on_schedule", msg);
             
-                if (i==0) Blynk.virtualWrite(V7, 1);
-                if (i==1) Blynk.virtualWrite(V8, 1);
-                if (i==2) Blynk.virtualWrite(V9, 1);            
+                if (i==0) {
+                    Blynk.virtualWrite(V7, 1);
+                    sheetLogger(WEB_APP, String(i+1), "Yes", "No");
+                }
+                if (i==1) {
+                    Blynk.virtualWrite(V8, 1);
+                    sheetLogger(WEB_APP, String(i+1), "Yes", "No");
+                }
+                if (i==2) {
+                    Blynk.virtualWrite(V9, 1);           
+                    sheetLogger(WEB_APP, String(i+1), "Yes", "No");
+                }
             }
         }
     }
 }
 
-void FeedManager::resetSchedule(FeedTimer* feedingTimes, int arrLength){
-    for (int i = 0; i < arrLength; i++){
-        feedingTimes[i].triggered = false;
+void FeedManager::resetSchedule(FeedTimer* FeedingSchedule, int ScheduleCounter){
+    for (int i = 0; i < ScheduleCounter; i++){
+        FeedingSchedule[i].triggered = false;
     }
     Blynk.virtualWrite(V7, 0);
     Blynk.virtualWrite(V8, 0);
     Blynk.virtualWrite(V9, 0);
 }
 
-void FeedManager::delayTillReset(FeedTimer* feedingTimes, int arrLength){
-    FeedTimer& t = feedingTimes[arrLength - 1];
+void FeedManager::delayTillReset(FeedTimer* FeedingSchedule, int ScheduleCounter){
+    FeedTimer& t = FeedingSchedule[ScheduleCounter - 1];
     if (t.triggered) {
         if (betterDelay(10000, _delayStartReset, _delayingReset)){
-            resetSchedule(feedingTimes, arrLength);
+            resetSchedule(FeedingSchedule, ScheduleCounter);
         }
     }
 }
 
-// locally use only
-void FeedManager::sheetLogger(const char* webApp, String val1, String val2, String val3){
+// local use only
+void FeedManager::sheetLogger(const char* WEB_APP, String val1, String val2, String val3){
     if (WiFi.status() == WL_CONNECTED){
         HTTPClient http;
-        String url = String(webApp) + "?value1=" + String(val1) + "&value2=" + String(val2) + "&value3=" + String(val3);
+        http.setTimeout(5000); // 5 seconds timeout in case of no response
+        String url = String(WEB_APP) + "?value1=" + String(val1) + "&value2=" + String(val2) + "&value3=" + String(val3);
         http.begin(url);
         int httpResponseCode = http.GET();  
         if (httpResponseCode > 0) DEBUG_PRINTLN(http.getString());
         else DEBUG_PRINTLN("Error on logging: " + String(httpResponseCode));
         http.end();
-    } else Serial.println("WiFi Disconnected. Logging failed.");
+    } else DEBUG_PRINTLN("WiFi Disconnected. Logging failed.");
 }   
 
 void FeedManager::setEStop(bool state){
@@ -141,10 +154,10 @@ void FeedManager::setEStop(bool state){
         _prev_eStop = state;
         if (state) {   
             _SERVO.detach(); // disable servo to stop any movement
-            Serial.println("EMERGENCY STOP ACTIVATED!");
+            DEBUG_PRINTLN("EMERGENCY STOP ACTIVATED!");
         } else {
             _SERVO.attach(SERVO_PIN); // re-enable servo
-            Serial.println("EMERGENCY STOP DEACTIVATED!");
+            DEBUG_PRINTLN("EMERGENCY STOP DEACTIVATED!");
         }
     }
     _eStop = state;
@@ -154,11 +167,18 @@ bool FeedManager::getEStop(){
     return _eStop;
 }
 
-String FeedManager::readFeedTimer(const FeedTimer& t){
-    String output = 
-    "Time: " + String(t.hr) + ":" + String(t.min) + ":" + String(t.sec)
-    + " Duration: " + String(t.duration)
-    + " | Is Triggered?: " + String(t.triggered ? "true" : "false"); 
+// DEBUGGER
+String FeedManager::readSchedule(FeedTimer* FeedingSchedule, int ScheduleCounter) const{
+    String output = "";
+
+    for (int i = 0; i < ScheduleCounter; i++){
+        const FeedTimer& t = FeedingSchedule[i];
+        output += String(i + 1) + ") ";
+        output += "Time: " + String(t.hr) + ":" + String(t.min) + ":" + String(t.sec);
+        output += " | Duration: " + String(t.duration);
+        output += " | Triggered?: " + String(t.triggered ? "true" : "false");
+        output += "\n"; 
+    }
 
     return output;
 }

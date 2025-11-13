@@ -1,7 +1,5 @@
 #pragma once
-#include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
-#include "TimeManager.h"
 
 class LCDManager {
 private:

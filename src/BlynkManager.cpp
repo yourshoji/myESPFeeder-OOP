@@ -1,8 +1,5 @@
 #include "BlynkManager.h"
-
-void BlynkManager::BlynkBegin(const char* authToken, const char* ssid, const char* pass){
-    Blynk.begin(authToken, ssid, pass);
-}
+#include <BlynkSimpleEsp32.h>
 
 void BlynkManager::BlynkSyncVirtualPins() {
     Blynk.syncVirtual(V4);  // Schedule 1 Time
@@ -13,3 +10,9 @@ void BlynkManager::BlynkSyncVirtualPins() {
     Blynk.syncVirtual(V15); // Schedule 3 Size
     // syncing data from Blynk Cloud to device
 }
+
+void BlynkManager::BlynkBegin(const char* authToken, const char* ssid, const char* pass){
+    Blynk.begin(authToken, ssid, pass);
+}
+
+

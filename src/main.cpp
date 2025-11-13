@@ -7,33 +7,32 @@
 #include <ThreeWire.h>
 #include <RtcDS1302.h>
 
-using namespace std;
-
 #include "EmergencyStop.h"
 #include "config.h"
 #include "credentials.h"
 #include "TimeManager.h"
 #include "LCDManager.h"
-#include "Logger.h"
 #include "FeedManager.h"
 #include "BlynkManager.h"
 #include "StatusHandler.h"
 
+// -------------------- Global Variables --------------------
 // LCD config
-LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // RTC config
-ThreeWire myWire(12, 27, 13);  // IO, SCLK, CE (adjust pins as needed)
+ThreeWire myWire(12, 27, 13);
 RtcDS1302<ThreeWire> Rtc(myWire);
 
-// SERVO config
+// Servo config
 Servo myServo;
 
-//Instantiation (spawning) of objects, so they truly exist
+// Objects
 LCDManager lcdManager(lcd);
 TimeManager timeManager(Rtc);
-EmergencyStop eStop(BUTTON_STOP_PIN, myServo); // calling a function from another file (setup of E-STOP)
+EmergencyStop eStop(BUTTON_STOP_PIN, myServo);
 StatusHandler statusHandler;
+BlynkManager blynkManager;
 FeedManager feedManager(
     myServo, 
     lcd, 
@@ -43,159 +42,135 @@ FeedManager feedManager(
     SERVO_DEFAULT_POS
 );
 
-// For betterDelay function
-unsigned long delayStartFeed = 0;
-bool delayingFeed = false;
+// Feed schedule
+FeedTimer FeedingSchedule[3]; // a schedule array, adjustable via Blynk
+int FeedCounter = 0;
+int ScheduleCounter = sizeof(FeedingSchedule) / sizeof(FeedingSchedule[0]);
 
-unsigned long delayStartBlink = 0;
-bool delayingBlink = false;
+// Time status
+TimeManager::rtc_src status;
 
-unsigned long delayStartReset = 0;
-bool delayingReset = false;
-
-unsigned long delayStartLog = 0;
-bool delayingLog = false;
-
-// Triggers
-// bool eStop = false;
-// bool prev_eStop = false;
-bool actionStarted = false;
-bool timerTriggered = false;
-bool isTimer = false; // triggers with onTimer(), only when the clock hits
-
-int Power_Status = 0; // LED_BUILTIN (V0)
-int prev_Power_Status = 0;
-int Feed_Status = 0; // LED_Status (V1)
-int WiFi_Status = 0; // LED_WiFi (V2)
-int prev_WiFi_Status = 0;
-
-// reading the values from Start & E-Stop buttons
-bool startValue;
-bool stopValue;
-
-// Use FeedTimer from FeedManager.h; do not redefine a local type that conflicts
-FeedTimer feedingTimes[3] = {
-  // {14, 43, 0, "small", 3000, false},
-  // {14, 45, 0, "medium", 5000, false},
-  // {14, 47, 0, "big", 7000, false}
-};
-
-// sizeof() = total size in byte (3 elements * 2 bytes each = 6 bytes)
-// total of 6 bytes divided by first byte = 2; ans = 3;
-int arrLength = sizeof(feedingTimes) / sizeof(feedingTimes[0]);
-int lastIndex = arrLength - 1;
-
-int feed_arrCounter = 0;
-
-// global time status
-TimeManager::rtc_src status; // global struct, object of rtc_src
-
-struct FeedState {
-  bool active = false;
-  unsigned long startTime = 0;
-  int duration = 0;
-  String size = "";
-};
-
-FeedState currentFeed;
-
-BLYNK_CONNECTED(){
-  Blynk.syncVirtual(V4, V5, V6, V13, V14, V15);
+// -------------------- Helper Functions --------------------
+void handleScheduleTime(FeedTimer &t, int totalSeconds) {
+    int hr = totalSeconds / 3600;
+    int min = (totalSeconds % 3600) / 60;
+    int sec = totalSeconds % 60;
+    t.hr = hr;
+    t.min = min;
+    t.sec = sec;
+    t.triggered = false;
+    FeedCounter++;
+    DEBUG_PRINTLN("Counter: " + String(FeedCounter));
 }
 
+void handleScheduleSize(FeedTimer &t, int sizeParam) {
+    switch (sizeParam) {
+        case 0: t.size = SMALL; t.duration = 2000; break;
+        case 1: t.size = MEDIUM; t.duration = 4000; break;
+        case 2: t.size = BIG; t.duration = 6000; break;
+    }
+}
+
+// -------------------- Blynk Handlers --------------------
+BLYNK_CONNECTED() {
+    blynkManager.BlynkSyncVirtualPins();
+}
+
+// Manual Feed Button
+BLYNK_WRITE(V3) {
+    if (param.asInt()) feedManager.startFeed(BIG, 5000, false, true);
+}
+
+// Schedule Handlers
+BLYNK_WRITE(V4) { handleScheduleTime(FeedingSchedule[0], param[0].asInt()); }
+BLYNK_WRITE(V5) { handleScheduleTime(FeedingSchedule[1], param[0].asInt()); }
+BLYNK_WRITE(V6) { handleScheduleTime(FeedingSchedule[2], param[0].asInt()); }
+
+// Reset and Read Schedule Buttons
+BLYNK_WRITE(V10) {
+    if (param.asInt()) {
+        feedManager.resetSchedule(FeedingSchedule, ScheduleCounter);
+        feedManager.readSchedule(FeedingSchedule, ScheduleCounter);
+    }
+}
+
+// Read Schedule Button (via CMD)
+BLYNK_WRITE(V11) {
+    if (param.asInt()) {
+        String msg = "Schedule:\n";
+        for (int i = 0; i < ScheduleCounter; i++) {
+            FeedTimer &t = FeedingSchedule[i];
+            msg += String(i + 1) + ") " +
+                   String(t.hr) + ":" + String(t.min) + ":" + String(t.sec) +
+                   " | " + t.size +
+                   " | " + String(t.duration / 1000) + "s\n";
+        }
+        DEBUG_PRINT(msg);
+        Blynk.virtualWrite(V12, msg);
+    }
+}
+
+// Schedule Size Handlers (1-3)
+BLYNK_WRITE(V13) { handleScheduleSize(FeedingSchedule[0], param.asInt()); }
+BLYNK_WRITE(V14) { handleScheduleSize(FeedingSchedule[1], param.asInt()); }
+BLYNK_WRITE(V15) { handleScheduleSize(FeedingSchedule[2], param.asInt()); }
+
+// Emergency Stop Handler
+BLYNK_WRITE(V16) { eStop.E_STOP(param.asInt()); }
+
+// -------------------- Setup & Loop --------------------
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
 
-  // I/O pins setup
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(LED_Status, OUTPUT);
-  pinMode(LED_WiFi, OUTPUT);
-  pinMode(BUTTON_START_PIN, INPUT);
-  pinMode(BUTTON_STOP_PIN, INPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
+    // I/O pins
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(LED_Status, OUTPUT);
+    pinMode(LED_WiFi, OUTPUT);
+    pinMode(BUTTON_START_PIN, INPUT);
+    pinMode(BUTTON_STOP_PIN, INPUT);
+    pinMode(BUZZER_PIN, OUTPUT);
 
-  // Servo setup
-  myServo.setPeriodHertz(50);
-  myServo.attach(SERVO_PIN, 500, 2400);
-  myServo.write(SERVO_DEFAULT_POS);
-  
-  // LCD setup
-  lcdManager.initialize();      
+    // Servo
+    myServo.setPeriodHertz(50);
+    myServo.attach(SERVO_PIN, 500, 2400);
+    myServo.write(SERVO_DEFAULT_POS);
 
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    DEBUG_PRINT(".");
-    
-    lcdManager.wifiConnecting();
-  }
-  
-  DEBUG_PRINTLN("WiFi Connected!");
+    // LCD
+    lcdManager.initialize();
 
-  // statuses (on-start)
-  // power status
-  statusHandler.StatusOnStart();
+    // WiFi
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        DEBUG_PRINT(".");
+        lcdManager.wifiConnecting();
+    }
+    DEBUG_PRINTLN("WiFi Connected!");
 
-  Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
-
-  DEBUG_PRINTLN(feedManager.readFeedTimer(feedingTimes[0]));
-
-  statusHandler.FeedStatusReset();
-
-  DEBUG_PRINTLN("Counter (startup): " + String(feed_arrCounter));
+    // Initial statuses
+    statusHandler.StatusOnStart(); // Start Power & WiFi statuses 
+    blynkManager.BlynkBegin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
+    DEBUG_PRINTLN(feedManager.readSchedule(FeedingSchedule, ScheduleCounter));
+    statusHandler.FeedStatusReset();
+    lcdManager.allSetupDone();
 }
 
 void loop() {
+    Blynk.run();
+    statusHandler.StatusUpdate(); // Update Power, WiFi, and Feed statuses
+    status = timeManager.rtcTimer(); // Get Real-Time Clock Timer
 
-  Blynk.run();
+    // Button reads
+    bool startValue = digitalRead(BUTTON_START_PIN);
+    bool stopValue  = digitalRead(BUTTON_STOP_PIN);
+    eStop.E_STOP(stopValue == HIGH); // Emergency-Stop
 
-  statusHandler.StatusUpdate();
+    // Manual feed (activated via physical button)
+    feedManager.startFeed(FeedSize::BIG, 5000, false, false);
 
-  status = timeManager.rtcTimer(); // update the status (globally)
+    if (FeedCounter > 0) { // Start the schedule feeding once there's an item added to the schedules
+        feedManager.scheduleFeed(FeedingSchedule, ScheduleCounter, reinterpret_cast<const RtcStatus&>(status));
+    }
 
-  startValue = digitalRead(BUTTON_START_PIN);
-  stopValue = digitalRead(BUTTON_STOP_PIN);
-    
-  bool E_STOP_VALUE = (stopValue == HIGH); // true if pressed, false if released
-  eStop.E_STOP(E_STOP_VALUE);  
-
-  feedManager.startFeed(
-    "big", 
-    5000, 
-    false, 
-    false
-  );
-
-if (feed_arrCounter > 0){ // accept only 3 schedules
-  feedManager.scheduleFeed(
-    feedingTimes, 
-    arrLength, 
-    reinterpret_cast<const RtcStatus&>(status)
-  );
+    feedManager.delayTillReset(FeedingSchedule, ScheduleCounter); // Wait 10 sec before resetting and running for tomorrow
 }
-
-feedManager.delayTillReset(
-  feedingTimes, 
-  arrLength
-);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}
-

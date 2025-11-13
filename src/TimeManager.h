@@ -1,7 +1,7 @@
 #pragma once
-#include <Arduino.h>
 #include <ThreeWire.h>
 #include <RtcDS1302.h>
+#include <Arduino.h>
 
 class TimeManager {
     private:

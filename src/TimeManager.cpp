@@ -1,5 +1,4 @@
 #include <TimeManager.h>
-#include <Arduino.h>
 
     TimeManager::rtc_src TimeManager::rtcTimer() {
         rtc_src status; // create a local struct variable

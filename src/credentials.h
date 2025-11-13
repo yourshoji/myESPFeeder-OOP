@@ -10,4 +10,4 @@ const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 
 // Google Apps Script URL for logging
-const char* webApp = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+const char* WEB_APP = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";

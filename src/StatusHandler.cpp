@@ -1,4 +1,6 @@
 #include "StatusHandler.h"
+#include <BlynkSimpleEsp32.h>
+#include <Arduino.h>
 
 void StatusHandler::StatusOnStart() {
     // STATUS ON STARTUP

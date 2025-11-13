@@ -3,15 +3,19 @@
 #include <ESP32Servo.h>
 #include <LiquidCrystal_I2C.h>
 #include <RtcDS1302.h>
-#include <HTTPClient.h>
-#include <BlynkSimpleEsp32.h>
-#include "config.h" // for webApp variable
+#include "config.h" // for WEB_APP variable
+
+enum FeedSize {
+    SMALL,
+    MEDIUM,
+    BIG
+};
 
 struct FeedTimer {
     int hr;
     int min;
     int sec;
-    String size;
+    FeedSize size;
     int duration;
     bool triggered;
 };
@@ -26,7 +30,7 @@ struct FeedState {
     bool active;
     unsigned long startTime;
     int duration;
-    String size;
+    FeedSize size;
 };
 
 
@@ -36,7 +40,7 @@ class FeedManager {
 
         // Hardware references
         Servo& _SERVO; // reference to the servo object
-        LiquidCrystal_I2C _LCD;
+        LiquidCrystal_I2C& _LCD;
         RtcDS1302<ThreeWire>& _RTC;
         int _SERVO_DEFAULT_POS; // default servo position
         int _BUZZER_PIN; // buzzer pin
@@ -52,7 +56,7 @@ class FeedManager {
         bool _eStop = false;
         bool _prev_eStop = false;
 
-        int portion(const String& size); // helper to determine servo position based on size
+        int portion(FeedSize size); // helper to determine servo position based on size
         bool betterDelay(unsigned long delayDuration, unsigned long &delayStart, bool &delaying);
         // "&" is a reference to the real variable, not just a copy
         String rtc_strTimer();
@@ -70,23 +74,23 @@ class FeedManager {
         );
 
         // Public methods/functions
-        void startFeed(String size, int duration, bool isTimer, bool isManual);
+        void startFeed(FeedSize size, int duration, bool isTimer, bool isManual);
 
         void updateFeed();
 
-        void scheduleFeed(FeedTimer* feedingTimes, int arrLength, const RtcStatus& status);    
+        void scheduleFeed(FeedTimer* FeedingSchedule, int ScheduleCounter, const RtcStatus& status);    
 
-        void resetSchedule(FeedTimer* feedingTimes, int arrLength);
+        void resetSchedule(FeedTimer* FeedingSchedule, int ScheduleCounter);
 
-        void delayTillReset(FeedTimer* feedingTimes, int arrLength);
+        void delayTillReset(FeedTimer* FeedingSchedule, int ScheduleCounter);
 
-        void sheetLogger(const char* webApp, String val1, String val2, String val3);
+        void sheetLogger(const char* WEB_APP, String val1, String val2, String val3);
 
         void setEStop(bool state);
         bool getEStop();
 
         // DEBUG 
-        String readFeedTimer(const FeedTimer& t);
+        String readSchedule(FeedTimer* FeedingSchedule, int ScheduleCounter) const;
         
         
     };

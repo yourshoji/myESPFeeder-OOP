@@ -1,5 +1,4 @@
 #pragma once
-#include <BlynkSimpleEsp32.h>
 #include "config.h"
 
 class StatusHandler {
